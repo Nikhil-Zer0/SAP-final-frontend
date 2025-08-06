@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUpload } from "@/components/common/FileUpload";
 import { Brain, TrendingUp, TrendingDown, FileText, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { explainabilityApi, ExplainabilityResult, ApiError } from "@/lib/api";
 
 interface ExplainabilityForm {
   file: File | null;
@@ -24,16 +25,7 @@ interface FeatureImportance {
   direction: "positive" | "negative";
 }
 
-interface ExplainabilityResult {
-  model_name: string;
-  model_version: string;
-  instance_index: number;
-  shap_values: Record<string, number>;
-  feature_importance: FeatureImportance[];
-  natural_language_explanation: string;
-  role: string;
-  recommendations: string[];
-}
+// ExplainabilityResult interface moved to api.ts
 
 export default function Explainability() {
   const [form, setForm] = useState<ExplainabilityForm>({
@@ -87,58 +79,30 @@ export default function Explainability() {
 
     setLoading(true);
     try {
-      // Mock API call - replace with actual endpoint
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await explainabilityApi.explain(
+        form.file!,
+        form.model_name,
+        form.model_version,
+        form.target_variable,
+        form.sensitive_attribute,
+        form.instance_index,
+        form.role
+      );
       
-      const mockResult: ExplainabilityResult = {
-        model_name: form.model_name,
-        model_version: form.model_version,
-        instance_index: form.instance_index,
-        shap_values: {
-          experience: -0.119,
-          education: 0.071,
-          gender: -0.109,
-          age: 0.012
-        },
-        feature_importance: [
-          {
-            feature: "experience",
-            importance: 0.119,
-            direction: "negative"
-          },
-          {
-            feature: "gender", 
-            importance: 0.109,
-            direction: "negative"
-          },
-          {
-            feature: "education",
-            importance: 0.071,
-            direction: "positive"
-          },
-          {
-            feature: "age",
-            importance: 0.012,
-            direction: "positive"
-          }
-        ],
-        natural_language_explanation: "Executive Summary: The model's decisions are significantly influenced by gender and experience factors, showing potential bias concerns that require immediate attention for compliance with fairness regulations.",
-        role: form.role,
-        recommendations: [
-          "Gender has a negative impact on outcomes. Consider implementing fairness-aware retraining.",
-          "Monitor model performance quarterly to ensure continued fairness and compliance."
-        ]
-      };
-      
-      setResult(mockResult);
+      setResult(result);
       toast({
         title: "Explainability analysis completed",
         description: `Generated explanation for ${form.role} role`,
       });
     } catch (error) {
+      console.error('Explainability API error:', error);
+      const errorMessage = error instanceof ApiError 
+        ? error.message 
+        : "Failed to generate explainability report";
+        
       toast({
         title: "Analysis failed",
-        description: "Failed to generate explainability report",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

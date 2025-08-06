@@ -14,31 +14,9 @@ import {
   Users
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { dashboardApi, DashboardData, ModelRisk, ApiError } from "@/lib/api";
 
-interface DashboardData {
-  timestamp: string;
-  total_models_audited: number;
-  compliant_models: number;
-  non_compliant_models: number;
-  compliance_rate: number;
-  top_bias_source: string;
-  most_risky_model: string;
-  audit_status: string;
-  risk_score: number;
-  last_audit: string;
-  pending_actions: number;
-  trend: string;
-}
-
-interface ModelRisk {
-  model_name: string;
-  version: string;
-  status: string;
-  risk_score: number;
-  bias_source: string;
-  disparate_impact: number;
-  last_audited: string;
-}
+// Interface definitions moved to api.ts
 
 export default function Dashboard() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
@@ -54,74 +32,47 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Mock API calls - replace with actual endpoints
-      const summaryResponse = await mockApiCall('/api/v1/dashboard/summary') as DashboardData;
-      const modelRiskResponse = await mockApiCall('/api/v1/dashboard/model_risk') as ModelRisk[];
+      // Fetch data from real API endpoints
+      const [summaryResponse, modelRiskResponse] = await Promise.all([
+        dashboardApi.getSummary(),
+        dashboardApi.getModelRisk()
+      ]);
       
       setDashboardData(summaryResponse);
       setModelRisks(modelRiskResponse);
     } catch (error) {
+      console.error('Dashboard API error:', error);
+      
+      // Provide fallback data if API is not available
+      const fallbackSummary: DashboardData = {
+        timestamp: new Date().toISOString(),
+        total_models_audited: 0,
+        compliant_models: 0,
+        non_compliant_models: 0,
+        compliance_rate: 0,
+        top_bias_source: "N/A",
+        most_risky_model: "N/A",
+        audit_status: "offline",
+        risk_score: 0,
+        last_audit: "N/A",
+        pending_actions: 0,
+        trend: "unknown"
+      };
+      
+      setDashboardData(fallbackSummary);
+      setModelRisks([]);
+      
+      const errorMessage = error instanceof ApiError 
+        ? error.message 
+        : "Backend API not available - showing offline mode";
+        
       toast({
-        title: "Error loading dashboard",
-        description: "Failed to fetch dashboard data",
+        title: "API Connection Issue",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Mock API function - replace with actual API calls
-  const mockApiCall = async (endpoint: string) => {
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    if (endpoint === '/api/v1/dashboard/summary') {
-      return {
-        timestamp: "2025-08-06T03:30:00Z",
-        total_models_audited: 12,
-        compliant_models: 7,
-        non_compliant_models: 5,
-        compliance_rate: 0.58,
-        top_bias_source: "gender",
-        most_risky_model: "hiring_model_v1",
-        audit_status: "in_progress",
-        risk_score: 68,
-        last_audit: "2025-08-05T10:30:00Z",
-        pending_actions: 3,
-        trend: "improving"
-      };
-    }
-    
-    if (endpoint === '/api/v1/dashboard/model_risk') {
-      return [
-        {
-          model_name: "hiring_model_v1",
-          version: "1.0",
-          status: "NON-COMPLIANT",
-          risk_score: 92,
-          bias_source: "gender",
-          disparate_impact: 0.717,
-          last_audited: "2025-08-05"
-        },
-        {
-          model_name: "fraud_detection_v2",
-          version: "2.1",
-          status: "COMPLIANT",
-          risk_score: 34,
-          bias_source: "none",
-          disparate_impact: 0.91,
-          last_audited: "2025-08-04"
-        },
-        {
-          model_name: "credit_scoring_v3",
-          version: "3.0",
-          status: "NON-COMPLIANT",
-          risk_score: 76,
-          bias_source: "age",
-          disparate_impact: 0.78,
-          last_audited: "2025-08-03"
-        }
-      ];
     }
   };
 

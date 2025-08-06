@@ -8,30 +8,25 @@ import { FileUpload } from "@/components/common/FileUpload";
 import { RiskGauge } from "@/components/dashboard/RiskGauge";
 import { AlertTriangle, CheckCircle, TrendingDown, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { biasDetectionApi, BiasDetectionResult, ApiError } from "@/lib/api";
 
 interface BiasDetectionForm {
   file: File | null;
+  model_name: string;
+  model_version: string;
   target_variable: string;
   sensitive_attribute: string;
   privileged_group: string;
   unprivileged_group: string;
 }
 
-interface BiasDetectionResult {
-  metrics: {
-    disparate_impact: number;
-    statistical_parity_difference: number;
-    equal_opportunity_difference: number;
-    average_odds_difference: number;
-  };
-  audit_status: string;
-  recommendations: string[];
-  record_count: number;
-}
+// Interface moved to api.ts
 
 export default function BiasDetection() {
   const [form, setForm] = useState<BiasDetectionForm>({
     file: null,
+    model_name: "",
+    model_version: "",
     target_variable: "",
     sensitive_attribute: "",
     privileged_group: "",
@@ -59,7 +54,7 @@ export default function BiasDetection() {
       return false;
     }
     
-    const requiredFields = ['target_variable', 'sensitive_attribute', 'privileged_group', 'unprivileged_group'];
+    const requiredFields = ['model_name', 'model_version', 'target_variable', 'sensitive_attribute', 'privileged_group', 'unprivileged_group'];
     for (const field of requiredFields) {
       if (!form[field as keyof BiasDetectionForm]) {
         toast({
@@ -79,35 +74,31 @@ export default function BiasDetection() {
 
     setLoading(true);
     try {
-      // Mock API call - replace with actual endpoint
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await biasDetectionApi.detect(
+        form.file!,
+        form.model_name,
+        form.model_version,
+        form.target_variable,
+        form.sensitive_attribute,
+        form.privileged_group,
+        form.unprivileged_group
+      );
       
-      const mockResult: BiasDetectionResult = {
-        metrics: {
-          disparate_impact: 0.717,
-          statistical_parity_difference: -0.170,
-          equal_opportunity_difference: 0.000,
-          average_odds_difference: 0.000
-        },
-        audit_status: "NON-COMPLIANT",
-        recommendations: [
-          "Bias detected: Disparate impact ratio (0.72) below 0.8 threshold (EEOC 80% rule)",
-          "Recommendation: Retrain model with fairness constraints",
-          "Recommendation: Use synthetic data balancing for underrepresented groups",
-          "Recommendation: Adjust decision threshold for fairness"
-        ],
-        record_count: 104
-      };
-      
-      setResult(mockResult);
+      console.log('Bias detection API response:', result);
+      setResult(result);
       toast({
         title: "Bias detection completed",
-        description: `Analysis completed for ${mockResult.record_count} records`,
+        description: `Analysis completed for ${result.record_count ?? 0} records`,
       });
     } catch (error) {
+      console.error('Bias detection API error:', error);
+      const errorMessage = error instanceof ApiError 
+        ? error.message 
+        : "Failed to perform bias detection";
+        
       toast({
         title: "Analysis failed",
-        description: "Failed to perform bias detection",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -145,6 +136,28 @@ export default function BiasDetection() {
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Model Configuration</h3>
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="model_name">Model Name</Label>
+                  <Input
+                    id="model_name"
+                    placeholder="e.g., hiring_classifier"
+                    value={form.model_name}
+                    onChange={(e) => handleInputChange('model_name', e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="model_version">Model Version</Label>
+                  <Input
+                    id="model_version"
+                    placeholder="e.g., 1.0"
+                    value={form.model_version}
+                    onChange={(e) => handleInputChange('model_version', e.target.value)}
+                  />
+                </div>
+              </div>
+              
               <div>
                 <Label htmlFor="target_variable">Target Variable</Label>
                 <Input
@@ -223,7 +236,7 @@ export default function BiasDetection() {
                 </div>
                 
                 <div className="text-sm text-muted-foreground">
-                  Analyzed {result.record_count} records
+                  Analyzed {result.record_count ?? 0} records
                 </div>
               </Card>
 
@@ -232,29 +245,29 @@ export default function BiasDetection() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Disparate Impact</span>
-                    <span className={`font-bold ${getMetricColor(result.metrics.disparate_impact, 'disparate_impact')}`}>
-                      {result.metrics.disparate_impact.toFixed(3)}
+                    <span className={`font-bold ${getMetricColor(result.metrics.disparate_impact ?? 0, 'disparate_impact')}`}>
+                      {result.metrics.disparate_impact?.toFixed(3) ?? 'N/A'}
                     </span>
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Statistical Parity Difference</span>
-                    <span className={`font-bold ${getMetricColor(result.metrics.statistical_parity_difference, 'spd')}`}>
-                      {result.metrics.statistical_parity_difference.toFixed(3)}
+                    <span className={`font-bold ${getMetricColor(result.metrics.statistical_parity_difference ?? 0, 'spd')}`}>
+                      {result.metrics.statistical_parity_difference?.toFixed(3) ?? 'N/A'}
                     </span>
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Equal Opportunity Difference</span>
-                    <span className={`font-bold ${getMetricColor(result.metrics.equal_opportunity_difference, 'eod')}`}>
-                      {result.metrics.equal_opportunity_difference.toFixed(3)}
+                    <span className={`font-bold ${getMetricColor(result.metrics.equal_opportunity_difference ?? 0, 'eod')}`}>
+                      {result.metrics.equal_opportunity_difference?.toFixed(3) ?? 'N/A'}
                     </span>
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Average Odds Difference</span>
-                    <span className={`font-bold ${getMetricColor(result.metrics.average_odds_difference, 'aod')}`}>
-                      {result.metrics.average_odds_difference.toFixed(3)}
+                    <span className={`font-bold ${getMetricColor(result.metrics.average_odds_difference ?? 0, 'aod')}`}>
+                      {result.metrics.average_odds_difference?.toFixed(3) ?? 'N/A'}
                     </span>
                   </div>
                 </div>
@@ -264,7 +277,7 @@ export default function BiasDetection() {
                   <h4 className="text-sm font-medium mb-3">Disparate Impact Visualization</h4>
                   <div className="flex justify-center">
                     <RiskGauge 
-                      score={Math.round((1 - result.metrics.disparate_impact) * 100)} 
+                      score={result.metrics.disparate_impact ? Math.round((1 - result.metrics.disparate_impact) * 100) : 0} 
                       size="md" 
                     />
                   </div>

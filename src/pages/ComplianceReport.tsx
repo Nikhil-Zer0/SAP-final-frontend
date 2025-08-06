@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { FileUpload } from "@/components/common/FileUpload";
 import { FileText, Download, Shield, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { complianceApi, ApiError } from "@/lib/api";
 
 interface ComplianceForm {
   file: File | null;
@@ -39,6 +40,7 @@ export default function ComplianceReport() {
   });
   const [loading, setLoading] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [complianceStatus, setComplianceStatus] = useState<ComplianceStatus>({
     gdpr: "pending",
     eeoc: "pending", 
@@ -85,10 +87,23 @@ export default function ComplianceReport() {
 
     setLoading(true);
     try {
-      // Mock API call - replace with actual endpoint
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Generate the compliance report PDF
+      const pdfBlob = await complianceApi.generateReport(
+        form.file!,
+        form.model_name,
+        form.model_version,
+        form.target_variable,
+        form.sensitive_attribute,
+        form.privileged_group,
+        form.unprivileged_group,
+        form.role
+      );
       
-      // Mock compliance results
+      // Store the PDF blob for download
+      setPdfBlob(pdfBlob);
+      
+      // For compliance status, we'll simulate based on the successful generation
+      // In a real scenario, this might come from the API response
       const mockStatus: ComplianceStatus = {
         gdpr: "compliant",
         eeoc: "non-compliant",
@@ -104,9 +119,14 @@ export default function ComplianceReport() {
         description: "Report is ready for download",
       });
     } catch (error) {
+      console.error('Compliance report API error:', error);
+      const errorMessage = error instanceof ApiError 
+        ? error.message 
+        : "Failed to generate compliance report";
+        
       toast({
         title: "Report generation failed",
-        description: "Failed to generate compliance report",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -115,11 +135,27 @@ export default function ComplianceReport() {
   };
 
   const handleDownloadReport = () => {
-    // Mock PDF download - replace with actual download logic
-    toast({
-      title: "Download started",
-      description: "Ethical_AI_Compliance_Report.pdf",
-    });
+    if (pdfBlob) {
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Ethical_AI_Compliance_Report.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download started",
+        description: "Ethical_AI_Compliance_Report.pdf",
+      });
+    } else {
+      toast({
+        title: "Download failed",
+        description: "No report available for download",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusIcon = (status: string) => {
