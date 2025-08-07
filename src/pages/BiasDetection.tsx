@@ -273,15 +273,16 @@ export default function BiasDetection() {
                 </div>
                 
                 {/* Disparate Impact Gauge */}
-                <div className="mt-6">
+                {/* <div className="mt-6">
                   <h4 className="text-sm font-medium mb-3">Disparate Impact Visualization</h4>
                   <div className="flex justify-center">
                     <RiskGauge 
+                      // score={result.metrics.disparate_impact ? Math.round((1 - result.metrics.disparate_impact) * 100) : 0} 
                       score={result.metrics.disparate_impact ? Math.round((1 - result.metrics.disparate_impact) * 100) : 0} 
                       size="md" 
                     />
                   </div>
-                </div>
+                </div> */}
               </Card>
 
               <Card className="p-6">
